@@ -1,330 +1,389 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<title>demo project</title>
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<link rel="shortcut icon" href="../files/favicon.ico" />
-		<link rel="stylesheet" type="text/css" href="../files/main.css">
-		<style>
-			#panel #content .link {
-				display: block;
-			}
-		</style>
-	</head>
-	<body>
 
-		<div id="panel">
+<head>
+	<title>three.js - pointerlock controls</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+	<style>
+		#blocker {
+			position: absolute;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0, 0, 0, 0.5);
+		}
 
-			<div id="header">
+		#instructions {
+			width: 100%;
+			height: 100%;
 
-				<div id="sections">
-<!--					<a href="../docs/index.html#manual/introduction/Creating-a-scene">docs</a>-->
-					<span class="selected">examples</span>
-				</div>
+			display: -webkit-box;
+			display: -moz-box;
+			display: box;
 
-				<div id="expandButton"></div>
-			</div>
+			-webkit-box-orient: horizontal;
+			-moz-box-orient: horizontal;
+			box-orient: horizontal;
 
-			<div id="panelScrim"></div>
+			-webkit-box-pack: center;
+			-moz-box-pack: center;
+			box-pack: center;
 
-			<div id="contentWrapper">
+			-webkit-box-align: center;
+			-moz-box-align: center;
+			box-align: center;
 
-				<div id="inputWrapper">
-					<input placeholder="" type="text" id="filter" autocorrect="off" autocapitalize="off" spellcheck="false" />
-					<div id="exitSearchButton"></div>
-				</div>
+			color: #ffffff;
+			text-align: center;
+			font-family: Arial;
+			font-size: 14px;
+			line-height: 24px;
 
-				<div id="content"></div>
-			</div>
+			cursor: pointer;
+		}
+	</style>
+</head>
 
+<body>
+	<div id="info">
+		<a href="#" rel="noopener">Digital Event</a> -
+		<a href="#" rel="noopener">Blame IT</a> :*<br />
+		<div id="description"></div>
+	</div>
+	<div id="blocker">
+
+		<div id="instructions">
+			<span style="font-size:36px">Click to Start :)</span>
+			<br /><br />
+			Move: WASD<br />
+			Jump: SPACE<br />
+			Look: MOUSE<br />
+			Exit: ESC
 		</div>
 
-		<iframe id="viewer" name="viewer" allowfullscreen allowvr onmousewheel=""></iframe>
+	</div>
 
-		<a id="button" target="_blank"><img src="../files/ic_code_black_24dp.svg"></a>
+	<script type="module">
 
-		<script src="files.js"></script>
+		import * as THREE from '../build/three.module.js';
 
-		<script>
+		import { PointerLockControls } from './jsm/controls/PointerLockControls.js';
+		import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+		import { DDSLoader } from './jsm/loaders/DDSLoader.js';
+		import { DRACOLoader } from './jsm/loaders/DRACOLoader.js';
+		import { RGBELoader } from './jsm/loaders/RGBELoader.js';
 
-		function extractQuery() {
+		var camera, scene, renderer, controls;
+		var gltf;
 
-			var p = window.location.search.indexOf( '?q=' );
+		var objects = [];
 
-			if ( p !== - 1 ) {
+		var raycaster;
 
-				return window.location.search.substr( 3 );
+		var moveForward = false;
+		var moveBackward = false;
+		var moveLeft = false;
+		var moveRight = false;
+		var canJump = false;
 
-			}
+		var prevTime = performance.now();
+		var velocity = new THREE.Vector3();
+		var direction = new THREE.Vector3();
+		var vertex = new THREE.Vector3();
+		var color = new THREE.Color();
 
-			return '';
+		var xPosition = 0;
+		var booth;
 
-		}
+		init();
+		animate();
 
-		var panel = document.getElementById( 'panel' );
-		var content = document.getElementById( 'content' );
-		var viewer = document.getElementById( 'viewer' );
+		function init() {
 
-		var filterInput = document.getElementById( 'filter' );
-		var exitSearchButton = document.getElementById( 'exitSearchButton' );
+			camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+			camera.position.y = 5;
 
-		var expandButton = document.getElementById( 'expandButton' );
-		expandButton.addEventListener( 'click', function ( event ) {
+			scene = new THREE.Scene();
+			scene.background = new THREE.Color(0xffffff);
+			scene.fog = new THREE.Fog(0xffffff, 0, 750);
 
-			event.preventDefault();
-			panel.classList.toggle( 'open' );
+			var light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
+			light.position.set(0.5, 1, 0.75);
+			scene.add(light);
 
-		} );
+			controls = new PointerLockControls(camera, document.body);
 
-		var panelScrim = document.getElementById( 'panelScrim' );
-		panelScrim.onclick = function ( event ) {
+			var blocker = document.getElementById('blocker');
+			var instructions = document.getElementById('instructions');
 
-			event.preventDefault();
-			panel.classList.toggle( 'open' );
+			instructions.addEventListener('click', function () {
 
-		};
+				controls.lock();
 
-		// iOS iframe auto-resize workaround
+			}, false);
 
-		if ( /(iPad|iPhone|iPod)/g.test( navigator.userAgent ) ) {
+			controls.addEventListener('lock', function () {
 
-			viewer.style.width = getComputedStyle( viewer ).width;
-			viewer.style.height = getComputedStyle( viewer ).height;
-			viewer.setAttribute( 'scrolling', 'no' );
+				instructions.style.display = 'none';
+				blocker.style.display = 'none';
 
-		}
+			});
 
-		var container = document.createElement( 'div' );
-		content.appendChild( container );
+			controls.addEventListener('unlock', function () {
 
-		var viewSrcButton = document.getElementById( 'button' );
-		viewSrcButton.style.display = 'none';
+				blocker.style.display = 'block';
+				instructions.style.display = '';
 
-		var links = {};
-		var selected = null;
+			});
 
-		function createLink( file ) {
+			scene.add(controls.getObject());
 
-			var link = document.createElement( 'a' );
-			link.className = 'link';
-			link.href = file + '.html';
-			link.textContent = getName( file );
-			link.setAttribute( 'target', 'viewer' );
-			link.addEventListener( 'click', function ( event ) {
+			var onKeyDown = function (event) {
 
-				if ( event.button !== 0 || event.ctrlKey || event.altKey || event.metaKey ) return;
+				switch (event.keyCode) {
 
-				selectFile( file );
-
-			} );
-
-			return link;
-
-		}
-
-		for ( var key in files ) {
-
-			var section = files[ key ];
-
-			var header = document.createElement( 'h2' );
-			header.textContent = key;
-			header.setAttribute( 'data-category', key );
-			container.appendChild( header );
-
-			for ( var i = 0; i < section.length; i ++ ) {
-
-				var file = section[ i ];
-
-				var link = createLink( file );
-				container.appendChild( link );
-
-				links[ file ] = link;
-
-			}
-
-		}
-
-		function loadFile( file ) {
-
-			selectFile( file );
-			viewer.src = file + '.html';
-
-		}
-
-		function selectFile( file ) {
-
-			if ( selected !== null ) links[ selected ].classList.remove( 'selected' );
-
-			links[ file ].classList.add( 'selected' );
-
-			window.location.hash = file;
-			viewer.focus();
-
-			panel.classList.remove( 'open' );
-
-			selected = file;
-
-			// Reveal "View source" button and set attributes to this example
-			viewSrcButton.style.display = '';
-			viewSrcButton.href = 'https://github.com/mrdoob/three.js/blob/master/examples/' + selected + '.html';
-			viewSrcButton.title = 'View source code for ' + getName( selected ) + ' on GitHub';
-
-		}
-
-		if ( window.location.hash !== '' && links[ window.location.hash.substring( 1 ) ] ) {
-
-			loadFile( window.location.hash.substring( 1 ) );
-
-		}
-
-		// filter
-		filterInput.onfocus = function ( event ) {
-
-			panel.classList.add( 'searchFocused' );
-
-		};
-
-		filterInput.onblur = function ( event ) {
-
-			if ( filterInput.value === '' ) {
-
-				panel.classList.remove( 'searchFocused' );
-
-			}
-
-		};
-
-		exitSearchButton.onclick = function ( event ) {
-
-			filterInput.value = '';
-			updateFilter();
-			panel.classList.remove( 'searchFocused' );
-
-		};
-
-		filterInput.addEventListener( 'input', function () {
-
-			updateFilter();
-
-		} );
-
-		function updateFilter() {
-
-			var v = filterInput.value;
-
-			if ( v !== '' ) {
-
-				window.history.replaceState( {}, '', '?q=' + v + window.location.hash );
-
-			} else {
-
-				window.history.replaceState( {}, '', window.location.pathname + window.location.hash );
-
-			}
-
-			var exp = new RegExp( v, 'gi' );
-
-			for ( var key in files ) {
-
-				var section = files[ key ];
-
-				for ( var i = 0; i < section.length; i ++ ) {
-
-					filterExample( section[ i ], exp );
-
-				}
-
-			}
-
-			layoutList();
-
-		}
-
-		function filterExample( file, exp ) {
-
-			var link = links[ file ];
-			var name = getName( file );
-			var res = file.match( exp );
-			var text;
-
-			if ( res && res.length > 0 ) {
-
-				link.classList.remove( 'hidden' );
-
-				for ( var i = 0; i < res.length; i ++ ) {
-
-					text = name.replace( res[ i ], '<b>' + res[ i ] + '</b>' );
-
-				}
-
-				link.innerHTML = text;
-
-			} else {
-
-				link.classList.add( 'hidden' );
-				link.innerHTML = name;
-
-			}
-
-		}
-
-		function getName( file ) {
-
-			var name = file.split( '_' );
-			name.shift();
-			return name.join( ' / ' );
-
-		}
-
-		function layoutList() {
-
-			for ( var key in files ) {
-
-				var collapsed = true;
-
-				var section = files[ key ];
-
-				for ( var i = 0; i < section.length; i ++ ) {
-
-					var file = section[ i ];
-
-					if ( links[ file ].classList.contains( 'hidden' ) === false ) {
-
-						collapsed = false;
+					case 38: // up
+					case 87: // w
+						moveForward = true;
 						break;
 
-					}
+					case 37: // left
+					case 65: // a
+						moveLeft = true;
+						break;
+
+					case 40: // down
+					case 83: // s
+						moveBackward = true;
+						break;
+
+					case 39: // right
+					case 68: // d
+						moveRight = true;
+						break;
+
+					case 32: // space
+						if (canJump === true) velocity.y += 350;
+						canJump = false;
+						break;
 
 				}
 
-				var element = document.querySelector( 'h2[data-category="' + key + '"]' );
+			};
 
-				if ( collapsed ) {
+			var onKeyUp = function (event) {
 
-					element.classList.add( 'hidden' );
+				switch (event.keyCode) {
 
-				} else {
+					case 38: // up
+					case 87: // w
+						moveForward = false;
+						break;
 
-					element.classList.remove( 'hidden' );
+					case 37: // left
+					case 65: // a
+						moveLeft = false;
+						break;
+
+					case 40: // down
+					case 83: // s
+						moveBackward = false;
+						break;
+
+					case 39: // right
+					case 68: // d
+						moveRight = false;
+						break;
 
 				}
+
+			};
+
+			document.addEventListener('keydown', onKeyDown, false);
+			document.addEventListener('keyup', onKeyUp, false);
+
+			raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10);
+
+			// floor
+
+			var floorGeometry = new THREE.PlaneBufferGeometry(2000, 2000, 100, 100);
+			floorGeometry.rotateX(- Math.PI / 2);
+
+			// vertex displacement
+
+			var position = floorGeometry.attributes.position;
+
+			for (var i = 0, l = position.count; i < l; i++) {
+
+				vertex.fromBufferAttribute(position, i);
+
+				vertex.x += Math.random() * 20 - 10;
+				vertex.y += Math.random() * 2;
+				vertex.z += Math.random() * 20 - 10;
+
+				position.setXYZ(i, vertex.x, vertex.y, vertex.z);
 
 			}
 
+			floorGeometry = floorGeometry.toNonIndexed(); // ensure each face has unique vertices
+
+			position = floorGeometry.attributes.position;
+			var colors = [];
+
+			for (var i = 0, l = position.count; i < l; i++) {
+
+				color.setHSL(Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75);
+				colors.push(color.r, color.g, color.b);
+
+			}
+
+			floorGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+			var floorMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+
+			var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+			scene.add(floor);
+
+			// objects
+
+			var boxGeometry = new THREE.BoxBufferGeometry(20, 20, 20);
+			boxGeometry = boxGeometry.toNonIndexed(); // ensure each face has unique vertices
+
+			position = boxGeometry.attributes.position;
+			colors = [];
+
+			for (var i = 0, l = position.count; i < l; i++) {
+
+				color.setHSL(Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75);
+				colors.push(color.r, color.g, color.b);
+
+			}
+
+			boxGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+			var loader = new GLTFLoader();
+
+			var dracoLoader = new DRACOLoader();
+			dracoLoader.setDecoderPath('js/libs/draco/gltf/');
+			loader.setDRACOLoader(dracoLoader);
+
+			loader.setDDSLoader(new DDSLoader());
+
+
+
+			for (var i = 0; i < 3; i++) {
+				loader.load('./models/gltf/BoothBatik.glb', function (gltf) {
+					gltf.scene.scale.set(15, 15, 15);
+					booth = gltf.scene;
+
+					booth.position.x = Math.floor(xPosition);
+					booth.position.y = Math.floor(1);
+					booth.position.z = Math.floor(0);
+
+
+					scene.add(booth);
+					objects.push(booth);
+
+					xPosition = xPosition + 50;
+					console.log(objects.length);
+				}, undefined, function (error) {
+					console.error(error);
+				});
+			}
+
+			// for (var i = 0; i < 2; i++) {
+			// 	var boxMaterial = new THREE.MeshPhongMaterial({ specular: 0xffffff, flatShading: true, vertexColors: true });
+			// 	boxMaterial.color.setHSL(Math.random() * 0.2 + 0.5, 0.75, Math.random() * 0.25 + 0.75);
+
+			// 	booth = new THREE.Mesh(boxGeometry, boxMaterial);
+			// 	booth.position.x = Math.floor(xPosition);
+			// 	booth.position.y = Math.floor(1);
+			// 	booth.position.z = Math.floor(0);
+
+			// 	scene.add(booth);
+			// 	objects.push(booth);
+			// 	xPosition = xPosition + 50;
+			// }
+
+			renderer = new THREE.WebGLRenderer({ antialias: true });
+			renderer.setPixelRatio(window.devicePixelRatio);
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			document.body.appendChild(renderer.domElement);
+
+			//
+
+			window.addEventListener('resize', onWindowResize, false);
+
 		}
 
-		filterInput.value = extractQuery();
+		function onWindowResize() {
 
-		if ( filterInput.value !== '' ) {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
 
-			panel.classList.add( 'searchFocused' );
+			renderer.setSize(window.innerWidth, window.innerHeight);
 
 		}
 
-		updateFilter();
+		function animate() {
 
-		</script>
+			requestAnimationFrame(animate);
 
-	</body>
+			if (controls.isLocked === true) {
+
+				raycaster.ray.origin.copy(controls.getObject().position);
+				raycaster.ray.origin.y -= 10;
+
+				var intersections = raycaster.intersectObjects(objects);
+
+				var onObject = intersections.length > 0;
+
+				var time = performance.now();
+				var delta = (time - prevTime) / 1000;
+
+				velocity.x -= velocity.x * 10.0 * delta;
+				velocity.z -= velocity.z * 10.0 * delta;
+
+				velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+				direction.z = Number(moveForward) - Number(moveBackward);
+				direction.x = Number(moveRight) - Number(moveLeft);
+				direction.normalize(); // this ensures consistent movements in all directions
+
+				if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
+				if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+
+				if (onObject === true) {
+
+					velocity.y = Math.max(0, velocity.y);
+					canJump = true;
+
+				}
+
+				controls.moveRight(- velocity.x * delta);
+				controls.moveForward(- velocity.z * delta);
+
+				controls.getObject().position.y += (velocity.y * delta); // new behavior
+
+				if (controls.getObject().position.y < 10) {
+
+					velocity.y = 0;
+					controls.getObject().position.y = 10;
+
+					canJump = true;
+
+				}
+
+				prevTime = time;
+
+			}
+
+			renderer.render(scene, camera);
+
+		}
+
+	</script>
+</body>
+
 </html>

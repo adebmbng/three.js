@@ -46,10 +46,15 @@
 </head>
 
 <body>
+	<div id="info">
+        <a href="https://threejs.org" target="_blank" rel="noopener">Digital Event</a> -
+        <a href="https://github.com/KhronosGroup/glTF" target="_blank" rel="noopener">Blame IT</a> :*<br />
+        <div id="description"></div>
+    </div>
 	<div id="blocker">
 
 		<div id="instructions">
-			<span style="font-size:36px">Click to play</span>
+			<span style="font-size:36px">Click to Start :)</span>
 			<br /><br />
 			Move: WASD<br />
 			Jump: SPACE<br />
@@ -93,8 +98,8 @@
 
 		function init() {
 
-			camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
-			camera.position.y = 10;
+			camera = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 1, 1000);
+			camera.position.y = 5;
 
 			scene = new THREE.Scene();
 			scene.background = new THREE.Color(0xffffff);
@@ -263,9 +268,10 @@
             loader.setDDSLoader(new DDSLoader());
 
 			loader.load('./models/gltf/BoothBatik.glb', function (gltf) {
-				// gltf = data;
+				gltf.scene.scale.set(15,15,15);
+
 				var booth = gltf.scene;
-				booth.position.y = Math.floor(5);
+				booth.position.y = Math.floor(1);
 
 				scene.add(booth);
 			}, undefined, function (error) {
